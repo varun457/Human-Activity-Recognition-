@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Human Activity Recognition Dashboard — Random Forest classifier results on UCI HAR smartphone sensor data.">
+    <title>HAR Dashboard — Human Activity Recognition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ─── HERO ──────────────────────────────────────────── -->
+<header class="hero" id="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-content">
+        <span class="badge">Machine Learning Project</span>
+        <h1>Human Activity Recognition</h1>
+        <p class="subtitle">Random Forest classifier on smartphone sensor data — identifying <em>walking, sitting, standing</em> and more in real-time.</p>
+        <div class="stats-row">
+            <div class="stat-chip"><span class="stat-value" id="heroAccuracy">{{ accuracy }}%</span><span class="stat-label">Accuracy</span></div>
+            <div class="stat-chip"><span class="stat-value">{{ total_train }}</span><span class="stat-label">Train Samples</span></div>
+            <div class="stat-chip"><span class="stat-value">{{ total_test }}</span><span class="stat-label">Test Samples</span></div>
+            <div class="stat-chip"><span class="stat-value">{{ n_features }}</span><span class="stat-label">Features</span></div>
+            <div class="stat-chip"><span class="stat-value">{{ n_estimators }}</span><span class="stat-label">Estimators</span></div>
+        </div>
+    </div>
+</header>
+
+<!-- ─── CLASSIFICATION REPORT ─────────────────────────── -->
+<section class="section" id="classification-report">
+    <h2 class="section-title">Classification Report</h2>
+    <p class="section-desc">Per-class precision, recall and F1-score on the test set.</p>
+
+    <div class="report-grid">
+        {% for m in class_metrics %}
+        <div class="report-card" style="--accent: {{ m.color }}">
+            <div class="card-icon">{{ m.icon }}</div>
+            <h3 class="card-label">{{ m.label }}</h3>
+            <div class="card-metrics">
+                <div class="metric">
+                    <div class="metric-bar-wrap"><div class="metric-bar" style="width:{{ m.precision }}%"></div></div>
+                    <span class="metric-val">{{ m.precision }}%</span>
+                    <span class="metric-name">Precision</span>
+                </div>
+                <div class="metric">
+                    <div class="metric-bar-wrap"><div class="metric-bar" style="width:{{ m.recall }}%"></div></div>
+                    <span class="metric-val">{{ m.recall }}%</span>
+                    <span class="metric-name">Recall</span>
+                </div>
+                <div class="metric">
+                    <div class="metric-bar-wrap"><div class="metric-bar" style="width:{{ m.f1 }}%"></div></div>
+                    <span class="metric-val">{{ m.f1 }}%</span>
+                    <span class="metric-name">F1-Score</span>
+                </div>
+            </div>
+            <span class="card-support">{{ m.support }} samples</span>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<!-- ─── VISUALIZATIONS ────────────────────────────────── -->
+<section class="section" id="visualizations">
+    <h2 class="section-title">Model Visualizations</h2>
+    <p class="section-desc">Confusion matrix and top feature importances.</p>
+
+    <div class="viz-grid">
+        <div class="viz-card">
+            <h3>Confusion Matrix</h3>
+            <div class="img-wrap">
+                <img src="/images/confusion_matrix.png" alt="Confusion Matrix" loading="lazy">
+            </div>
+        </div>
+        <div class="viz-card">
+            <h3>Top 10 Feature Importances</h3>
+            <div class="img-wrap">
+                <img src="/images/feature_importance.png" alt="Feature Importance" loading="lazy">
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ─── LIVE PREDICTION ───────────────────────────────── -->
+<section class="section" id="prediction">
+    <h2 class="section-title">Try a Prediction</h2>
+    <p class="section-desc">Pick a random test sample and let the model predict the activity.</p>
+
+    <div class="predict-area">
+        <button id="predictBtn" class="btn-predict">
+            <span class="btn-icon">🎲</span> Random Prediction
+        </button>
+
+        <div id="predResult" class="pred-result hidden">
+            <div class="pred-icon" id="predIcon"></div>
+            <div class="pred-details">
+                <span class="pred-label">Predicted</span>
+                <span class="pred-activity" id="predActivity"></span>
+                <div class="pred-meta">
+                    <span id="predActual"></span>
+                    <span id="predCorrect"></span>
+                    <span id="predIndex"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ─── FOOTER ────────────────────────────────────────── -->
+<footer class="footer">
+    <p>HAR Dashboard &mdash; Built with Flask &amp; scikit-learn &bull; UCI HAR Dataset</p>
+</footer>
+
+<script>
+    const btn     = document.getElementById('predictBtn');
+    const result  = document.getElementById('predResult');
+    const icon    = document.getElementById('predIcon');
+    const activity= document.getElementById('predActivity');
+    const actual  = document.getElementById('predActual');
+    const correct = document.getElementById('predCorrect');
+    const idx     = document.getElementById('predIndex');
+
+    btn.addEventListener('click', async () => {
+        btn.classList.add('loading');
+        btn.disabled = true;
+        result.classList.add('hidden');
+
+        try {
+            const res  = await fetch('/predict', { method: 'POST' });
+            const data = await res.json();
+
+            icon.textContent    = data.icon;
+            icon.style.background = data.color + '22';
+            icon.style.color      = data.color;
+            activity.textContent  = data.predicted;
+            activity.style.color  = data.color;
+            actual.textContent    = 'Actual: ' + data.actual;
+            correct.textContent   = data.correct ? '✅ Correct' : '❌ Wrong';
+            correct.className     = data.correct ? 'tag tag-ok' : 'tag tag-err';
+            idx.textContent       = 'Sample #' + data.index;
+
+            result.classList.remove('hidden');
+            result.classList.add('pop');
+            setTimeout(() => result.classList.remove('pop'), 400);
+        } catch(e) {
+            alert('Prediction failed – is the server running?');
+        }
+
+        btn.classList.remove('loading');
+        btn.disabled = false;
+    });
+
+    /* Intersection-observer fade-in */
+    const observer = new IntersectionObserver(entries => {
+        entries.forEach(e => { if(e.isIntersecting) e.target.classList.add('visible'); });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
